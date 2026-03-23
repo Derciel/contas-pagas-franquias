@@ -12,4 +12,3 @@ streamlit-aggrid
 openai
 flask
 flask-cors
-plotly-dash
