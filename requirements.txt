@@ -7,8 +7,10 @@ seaborn
 plotly
 scipy
 scikit-learn
-streamlit
+streamlit==1.28.1
 streamlit-aggrid
 openai
 flask
 flask-cors
+altair==4.2.2
+vega_datasets
