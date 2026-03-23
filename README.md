@@ -193,14 +193,38 @@ max_abas_franquias = 20
 3. Executar o sistema
 4. Acessar interface web
 
+### Deploy com Docker (Recomendado)
+```bash
+# 1. Clonar repositório
+git clone https://github.com/Derciel/contas-pagas-franquias.git
+cd contas-pagas-franquias
+
+# 2. Build e executar com docker-compose
+docker-compose up -d
+
+# 3. Acessar aplicação
+# http://localhost:8526
+```
+
+### Deploy Manual com Docker
+```bash
+# 1. Build da imagem
+docker build -t sistema-franquias .
+
+# 2. Executar container
+docker run -p 8526:8526 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/logs:/app/logs \
+  sistema-franquias
+```
+
 ### Deploy em Produção
 ```bash
-# Usando Docker (recomendado)
-docker build -t sistema-franquias .
-docker run -p 8526:8526 sistema-franquias
+# Com nginx (produção)
+docker-compose --profile production up -d
 
-# Ou Streamlit Cloud
-# Fazer upload dos arquivos para plataforma
+# Sem nginx (desenvolvimento)
+docker-compose up -d
 ```
 
 ### Variáveis de Ambiente
