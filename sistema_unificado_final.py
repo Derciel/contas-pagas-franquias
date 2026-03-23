@@ -266,6 +266,49 @@ class SistemaUnificadoFinal:
                 coluna_pago = col
                 break
         
+        # NOVO: DEPARA por CNPJ com clientes DGA
+        if self.clientes_data is not None:
+            # Detectar coluna de CNPJ no contas
+            coluna_cnpj_contas = None
+            colunas_cnpj_possiveis = ['CNPJ', 'CNPJ Cliente', 'Cliente CNPJ', 'CPF/CNPJ']
+            
+            for col in colunas_cnpj_possiveis:
+                if col in df_contas.columns:
+                    coluna_cnpj_contas = col
+                    break
+            
+            # Detectar coluna de CNPJ no clientes DGA
+            coluna_cnpj_clientes = None
+            if 'CNPJ' in self.clientes_data.columns:
+                coluna_cnpj_clientes = 'CNPJ'
+            
+            # Fazer DEPARA por CNPJ
+            if coluna_cnpj_contas and coluna_cnpj_clientes:
+                # Criar mapa de CNPJ para vendedor corrigido
+                cnpj_vendedor_map = dict(zip(
+                    self.clientes_data[coluna_cnpj_clientes], 
+                    self.clientes_data['Vendedor_corrigido']
+                ))
+                
+                # Adicionar vendedor corrigido via CNPJ
+                df_contas['Vendedor_corrigido'] = df_contas[coluna_cnpj_contas].map(cnpj_vendedor_map)
+                
+                # Detectar coluna de vendedor original
+                coluna_vendedor_original = None
+                colunas_vendedor_possiveis = ['Vendedor', 'Vendedor Original', 'Responsável']
+                
+                for col in colunas_vendedor_possiveis:
+                    if col in df_contas.columns:
+                        coluna_vendedor_original = col
+                        break
+                
+                # Substituir vendedor original se não existir
+                if coluna_vendedor_original is None:
+                    coluna_vendedor_original = 'Vendedor_corrigido'
+                else:
+                    # Atualizar vendedor original com o corrigido
+                    df_contas[coluna_vendedor_original] = df_contas['Vendedor_corrigido']
+        
         # Estatísticas básicas com precisão
         total_contas = len(df_contas)
         valor_total = 0
