@@ -1,0 +1,47 @@
+pandas
+openpyxl
+xlrd
+numpy
+matplotlib
+seaborn
+plotly
+scipy
+scikit-learn
+streamlit==1.28.1
+streamlit-aggrid
+openai
+flask
+flask-cors
+altair==4.2.2
+vega_datasets
+
+# Dependências para deploy em produção
+# Versões compatíveis para evitar conflitos
+
+# Core dependencies
+pandas>=1.5.0
+numpy>=1.21.0
+matplotlib>=3.5.0
+
+# Excel handling
+openpyxl>=3.0.0
+xlrd>=2.0.0
+
+# Visualization
+plotly>=5.0.0
+seaborn>=0.11.0
+altair==4.2.2
+vega_datasets>=0.9.0
+
+# Machine Learning
+scikit-learn>=1.0.0
+scipy>=1.7.0
+
+# Web framework
+streamlit==1.28.1
+streamlit-aggrid>=0.3.0
+
+# Optional APIs
+openai>=1.0.0
+flask>=2.0.0
+flask-cors>=4.0.0
