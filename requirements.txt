@@ -1,0 +1,15 @@
+pandas
+openpyxl
+xlrd
+numpy
+matplotlib
+seaborn
+plotly
+scipy
+scikit-learn
+streamlit
+streamlit-aggrid
+openai
+flask
+flask-cors
+plotly-dash
