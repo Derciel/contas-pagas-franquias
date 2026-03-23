@@ -572,10 +572,35 @@ class SistemaUnificadoFinal:
                 # Filtrar dados da franquia
                 dados_franquia = self.faturamento_data[self.faturamento_data['Franquias'] == franquia].copy()
                 
-                # Adicionar status do cliente
+                # Adicionar status do cliente com DEPARA CORRETA
                 if self.franquias_status is not None:
                     status_map = dict(zip(self.franquias_status['Cliente ID'], self.franquias_status['Status']))
                     dados_franquia['Status Cliente'] = dados_franquia['Cliente ID'].map(status_map)
+                    
+                    # NOVO: Adicionar vendedor corrigido do cliente
+                    if self.clientes_data is not None:
+                        # Criar mapa de vendedores corrigidos dos clientes
+                        vendedor_map = dict(zip(self.clientes_data['Cliente ID'], self.clientes_data['Vendedor_corrigido']))
+                        
+                        # Adicionar vendedor corrigido à franquia
+                        dados_franquia['Vendedor Corrigido'] = dados_franquia['Cliente ID'].map(vendedor_map)
+                        
+                        # NOVO: Adicionar dados do cliente DGA
+                        # Verificar colunas disponíveis no clientes_data
+                        colunas_cliente = []
+                        for col in ['Nome Fantasia', 'Razão Social', 'CNPJ', 'Telefone', 'Email']:
+                            if col in self.clientes_data.columns:
+                                colunas_cliente.append(col)
+                        
+                        if colunas_cliente:
+                            cliente_map = dict(zip(self.clientes_data['Cliente ID'], 
+                                                                self.clientes_data[colunas_cliente].to_dict('records')))
+                            
+                            # Adicionar informações do cliente DGA
+                            for col in colunas_cliente:
+                                dados_franquia[f'Cliente {col}'] = dados_franquia['Cliente ID'].apply(
+                                    lambda x: cliente_map.get(x, {}).get(col, 'N/A')
+                                )
                 
                 # Nome válido para aba (máximo 31 caracteres)
                 nome_aba = str(franquia)[:31].replace('/', '-').replace('\\', '-').replace('*', '-').replace('?', '-').replace(':', '-').replace('[', '-').replace(']', '-')
