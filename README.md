@@ -1,4 +1,4 @@
-# 🤖 Agente Excel - Análise Inteligente de Dados
+Análise Inteligente de Dados
 
 Um agente inteligente desenvolvido em Python para automação de tarefas em arquivos Excel, incluindo análise de dados, aplicação de fórmulas e geração de relatórios.
 
