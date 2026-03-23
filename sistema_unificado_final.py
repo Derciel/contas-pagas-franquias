@@ -957,7 +957,7 @@ def mostrar_dashboard(sistema):
         
         col1, col2 = st.columns(2)
         
-        with col2:
+        with col1:
             # Gráfico de pizza - Status de Pagamento
             if not analise_contas['status_pagamento'].empty:
                 fig_pagamento = go.Figure(data=[go.Pie(
@@ -976,6 +976,31 @@ def mostrar_dashboard(sistema):
                 )
                 
                 st.plotly_chart(fig_pagamento, use_container_width=True)
+        
+        with col2:
+            # Gráfico de barras - Top vendedores por valor total
+            if not analise_contas['contas_por_vendedor'].empty:
+                top_vendedores = analise_contas['contas_por_vendedor'].head(10)
+                
+                fig_vendedores = go.Figure(data=[
+                    go.Bar(
+                        x=top_vendedores.index,
+                        y=top_vendedores['Valor Total'],
+                        marker_color='lightblue',
+                        text=top_vendedores['Valor Total'].apply(lambda x: f"R$ {x:,.0f}"),
+                        textposition='auto'
+                    )
+                ])
+                
+                fig_vendedores.update_layout(
+                    title="Top 10 Vendedores - Valor Total",
+                    xaxis_title="Vendedor Corrigido",
+                    yaxis_title="Valor Total (R$)",
+                    height=400,
+                    xaxis_tickangle=-45
+                )
+                
+                st.plotly_chart(fig_vendedores, use_container_width=True)
         
         # Gráficos adicionais para pagamentos
         st.markdown("---")
@@ -1000,7 +1025,7 @@ def mostrar_dashboard(sistema):
                 
                 fig_pagos.update_layout(
                     title="Top 10 Vendedores - Valor Pago",
-                    xaxis_title="Vendedor",
+                    xaxis_title="Vendedor Corrigido",
                     yaxis_title="Valor Pago (R$)",
                     height=400,
                     xaxis_tickangle=-45
@@ -1025,7 +1050,7 @@ def mostrar_dashboard(sistema):
                 
                 fig_pendentes.update_layout(
                     title="Top 10 Vendedores - Valor Pendente",
-                    xaxis_title="Vendedor",
+                    xaxis_title="Vendedor Corrigido",
                     yaxis_title="Valor Pendente (R$)",
                     height=400,
                     xaxis_tickangle=-45
