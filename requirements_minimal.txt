@@ -1,0 +1,16 @@
+# Dependências mínimas para Streamlit Cloud
+# Apenas o essencial para o sistema funcionar
+
+# Core dependencies
+streamlit>=1.28.0
+pandas>=1.5.0
+numpy>=1.21.0
+
+# Excel handling
+openpyxl>=3.0.0
+
+# Visualization
+plotly>=5.0.0
+
+# Data processing
+scipy>=1.7.0

@@ -1,3 +1,6 @@
+# Dependências mínimas para Streamlit Cloud
+# Apenas o essencial para o sistema funcionar
+
 # Core dependencies
 streamlit>=1.28.0
 pandas>=1.5.0
@@ -12,14 +15,6 @@ plotly>=5.0.0
 # Data processing
 scipy>=1.7.0
 
-# Optional dependencies
+# Optional: para gráficos avançados
 altair>=4.2.0
 vega_datasets>=0.9.0
-xlrd>=2.0.0
-matplotlib>=3.5.0
-seaborn>=0.11.0
-scikit-learn>=1.0.0
-streamlit-aggrid>=0.3.0
-openai>=1.0.0
-flask>=2.0.0
-flask-cors>=4.0.0
