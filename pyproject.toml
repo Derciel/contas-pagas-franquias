@@ -37,11 +37,6 @@ dependencies = [
     "scikit-learn>=1.0.0",
     "streamlit>=1.28.0",
     "streamlit-aggrid>=0.3.0",
-    "openai>=1.0.0",
-    "flask>=2.0.0",
-    "flask-cors>=4.0.0",
-    "altair>=4.2.0",
-    "vega_datasets>=0.9.0",
 ]
 
 [project.urls]
@@ -50,7 +45,7 @@ Repository = "https://github.com/Derciel/contas-pagas-franquias.git"
 Issues = "https://github.com/Derciel/contas-pagas-franquias/issues"
 
 [project.scripts]
-sistema = "sistema_unificado_final.py"
+sistema = "sistema_unificado_final:main"
 
 [tool.setuptools]
 packages = ["."]
