@@ -340,7 +340,7 @@ class SistemaUnificadoFinal:
             if coluna_pago:
                 contas_por_vendedor['Valor Pendente'] = contas_por_vendedor[coluna_valor] - contas_por_vendedor[coluna_pago]
                 # Calcular percentual pago com precisão
-                contas_por_vendedor['% Pago'] = (contas_por_vendedor[coluna_pago] / contas_por_vendedor[coluna_valor] * 100).round(2)
+                contas_por_vendedor['% Pago'] = round(contas_por_vendedor[coluna_pago] / contas_por_vendedor[coluna_valor] * 100, 2)
                 # Achatar colunas
                 contas_por_vendedor.columns = ['Valor Total', 'Contas Vencidas', 'Valor Pago', 'Valor Pendente', 'Quantidade', '% Pago']
             else:
@@ -352,7 +352,7 @@ class SistemaUnificadoFinal:
                 contas_por_vendedor.columns = ['Valor Total', 'Contas Vencidas', 'Valor Pago', 'Valor Pendente', 'Quantidade', '% Pago']
             
             # Calcular percentual de vencidas
-            contas_por_vendedor['% Vencidas'] = (contas_por_vendedor['Contas Vencidas'] / contas_por_vendedor['Quantidade'] * 100).round(2)
+            contas_por_vendedor['% Vencidas'] = round(contas_por_vendedor['Contas Vencidas'] / contas_por_vendedor['Quantidade'] * 100, 2)
             
             # Reordenar colunas para melhor visualização
             if coluna_pago:
@@ -402,7 +402,7 @@ class SistemaUnificadoFinal:
             # Calcular contas pagas com precisão
             contas_pagas = len(df_contas[df_contas[coluna_pago] > 0])
             contas_abertas = total_contas - contas_pagas
-            taxa_pagamento = (contas_pagas / total_contas * 100).round(2) if total_contas > 0 else 0
+            taxa_pagamento = round(contas_pagas / total_contas * 100, 2) if total_contas > 0 else 0
         else:
             contas_pagas = 0
             contas_abertas = total_contas
