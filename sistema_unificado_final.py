@@ -266,7 +266,7 @@ class SistemaUnificadoFinal:
                 coluna_pago = col
                 break
         
-        # Estatísticas básicas
+        # Estatísticas básicas com precisão
         total_contas = len(df_contas)
         valor_total = 0
         valor_pago = 0
@@ -277,7 +277,7 @@ class SistemaUnificadoFinal:
         if coluna_pago:
             valor_pago = df_contas[coluna_pago].sum()
         
-        # Calcular valor pendente
+        # Calcular valor pendente com precisão
         valor_pendente = valor_total - valor_pago
         
         # Status por vencimento
@@ -309,7 +309,7 @@ class SistemaUnificadoFinal:
         if 'Status' in df_contas.columns:
             status_pagamento = df_contas['Status'].value_counts()
         
-        # CORREÇÃO: Usar vendedores corrigidos dos clientes
+        # CORREÇÃO PRECISA: Usar vendedores corrigidos dos clientes
         contas_por_vendedor = pd.DataFrame()
         
         # Detectar coluna de vendedor corrigido
@@ -322,10 +322,10 @@ class SistemaUnificadoFinal:
                 break
         
         if coluna_vendedor:
-            # Análise por vendedor corrigido com dados de pagamento
+            # Análise por vendedor corrigido com dados de pagamento PRECISOS
             agg_dict = {
                 coluna_valor: 'sum',
-                'Status Vencimento': lambda x: (x == 'Vencida').sum()
+                'Status Vencimento': lambda x: (x == 'Vencida').sum(),
             }
             
             if coluna_pago:
@@ -333,26 +333,28 @@ class SistemaUnificadoFinal:
             
             contas_por_vendedor = df_contas.groupby(coluna_vendedor).agg(agg_dict).round(2)
             
-            # Achatar colunas
+            # Adicionar quantidade de contas
+            contas_por_vendedor['Quantidade'] = df_contas.groupby(coluna_vendedor).size()
+            
+            # Calcular valor pendente por vendedor com precisão
             if coluna_pago:
-                contas_por_vendedor.columns = ['Valor Total', 'Contas Vencidas', 'Valor Pago']
-                # Calcular valor pendente por vendedor
-                contas_por_vendedor['Valor Pendente'] = contas_por_vendedor['Valor Total'] - contas_por_vendedor['Valor Pago']
-                # Calcular percentual pago
-                contas_por_vendedor['% Pago'] = (contas_por_vendedor['Valor Pago'] / contas_por_vendedor['Valor Total'] * 100).round(2)
+                contas_por_vendedor['Valor Pendente'] = contas_por_vendedor[coluna_valor] - contas_por_vendedor[coluna_pago]
+                # Calcular percentual pago com precisão
+                contas_por_vendedor['% Pago'] = (contas_por_vendedor[coluna_pago] / contas_por_vendedor[coluna_valor] * 100).round(2)
+                # Achatar colunas
+                contas_por_vendedor.columns = ['Valor Total', 'Contas Vencidas', 'Valor Pago', 'Valor Pendente', 'Quantidade', '% Pago']
             else:
                 contas_por_vendedor.columns = ['Valor Total', 'Contas Vencidas']
                 contas_por_vendedor['Valor Pago'] = 0
                 contas_por_vendedor['Valor Pendente'] = contas_por_vendedor['Valor Total']
                 contas_por_vendedor['% Pago'] = 0
-            
-            # Adicionar quantidade de contas
-            contas_por_vendedor['Quantidade'] = df_contas.groupby(coluna_vendedor).size()
+                # Achatar colunas
+                contas_por_vendedor.columns = ['Valor Total', 'Contas Vencidas', 'Valor Pago', 'Valor Pendente', 'Quantidade', '% Pago']
             
             # Calcular percentual de vencidas
             contas_por_vendedor['% Vencidas'] = (contas_por_vendedor['Contas Vencidas'] / contas_por_vendedor['Quantidade'] * 100).round(2)
             
-            # Reordenar colunas
+            # Reordenar colunas para melhor visualização
             if coluna_pago:
                 contas_por_vendedor = contas_por_vendedor[['Valor Total', 'Valor Pago', 'Valor Pendente', 'Quantidade', 'Contas Vencidas', '% Pago', '% Vencidas']]
             else:
@@ -361,7 +363,7 @@ class SistemaUnificadoFinal:
             # Ordenar por valor total
             contas_por_vendedor = contas_por_vendedor.sort_values('Valor Total', ascending=False)
         
-        # Análise por cliente (mantida para compatibilidade)
+        # Análise por cliente com dados precisos
         contas_por_cliente = pd.DataFrame()
         
         # Detectar coluna de cliente
@@ -376,7 +378,7 @@ class SistemaUnificadoFinal:
         if coluna_cliente:
             agg_dict_cliente = {
                 coluna_valor: 'sum',
-                'Status Vencimento': 'count'
+                'Status Vencimento': 'count',
             }
             
             if coluna_pago:
@@ -391,12 +393,28 @@ class SistemaUnificadoFinal:
                 contas_por_cliente.columns = ['Cliente', 'Valor Total', 'Quantidade']
                 contas_por_cliente['Valor Pago'] = 0
                 contas_por_cliente['Valor Pendente'] = contas_por_cliente['Valor Total']
+            
+            # Ordenar por valor total
+            contas_por_cliente = contas_por_cliente.sort_values('Valor Total', ascending=False)
+        
+        # Cálculos precisos de status
+        if coluna_pago:
+            # Calcular contas pagas com precisão
+            contas_pagas = len(df_contas[df_contas[coluna_pago] > 0])
+            contas_abertas = total_contas - contas_pagas
+            taxa_pagamento = (contas_pagas / total_contas * 100).round(2) if total_contas > 0 else 0
+        else:
+            contas_pagas = 0
+            contas_abertas = total_contas
+            taxa_pagamento = 0
         
         print(f"✅ Análise de contas a receber concluída:")
         print(f"   📄 Total de contas: {total_contas}")
         print(f"   💰 Valor total: R$ {valor_total:,.2f}")
         print(f"   💵 Valor pago: R$ {valor_pago:,.2f}")
         print(f"   ⏳ Valor pendente: R$ {valor_pendente:,.2f}")
+        print(f"   ✅ Contas pagas: {contas_pagas} ({taxa_pagamento}%)")
+        print(f"   ⏳ Contas abertas: {contas_abertas} ({100-taxa_pagamento}%)")
         print(f"   📋 Coluna valor utilizada: {coluna_valor}")
         print(f"   📋 Coluna pago utilizada: {coluna_pago}")
         print(f"   📋 Coluna vencimento utilizada: {coluna_vencimento}")
@@ -410,6 +428,9 @@ class SistemaUnificadoFinal:
             'valor_total': valor_total,
             'valor_pago': valor_pago,
             'valor_pendente': valor_pendente,
+            'contas_pagas': contas_pagas,
+            'contas_abertas': contas_abertas,
+            'taxa_pagamento': taxa_pagamento,
             'status_vencimento': status_vencimento,
             'status_pagamento': status_pagamento,
             'contas_por_cliente': contas_por_cliente,
@@ -449,14 +470,17 @@ class SistemaUnificadoFinal:
                 if analise_contas is not None:
                     analise_contas['df_contas'].to_excel(writer, sheet_name='Contas a Receber', index=False)
                     
-                    # Resumo de contas a receber
+                    # Resumo de contas a receber COM DADOS PRECISOS
                     resumo_contas = pd.DataFrame({
-                        'Métrica': ['Total de Contas', 'Valor Total', 'Valor Pago', 'Valor Pendente', 'Contas Vencidas', 'Contas a Vencer'],
+                        'Métrica': ['Total de Contas', 'Valor Total', 'Valor Pago', 'Valor Pendente', 'Contas Pagas', 'Contas Abertas', 'Taxa Pagamento', 'Contas Vencidas', 'Contas a Vencer'],
                         'Valor': [
                             analise_contas['total_contas'],
                             f"R$ {analise_contas['valor_total']:,.2f}",
                             f"R$ {analise_contas['valor_pago']:,.2f}",
                             f"R$ {analise_contas['valor_pendente']:,.2f}",
+                            analise_contas['contas_pagas'],
+                            analise_contas['contas_abertas'],
+                            f"{analise_contas['taxa_pagamento']:.1f}%",
                             analise_contas['status_vencimento'].get('Vencida', 0),
                             analise_contas['status_vencimento'].get('A Vencer', 0)
                         ]
