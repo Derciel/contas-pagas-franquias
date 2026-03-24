@@ -114,13 +114,26 @@ class SistemaUnificadoFinal:
         self.franquias_status = None
         self.data_cutoff = pd.Timestamp('2025-11-01')
     
+    @staticmethod
+    def limpar_cnpj(cnpj):
+        """Limpa CNPJ deixando apenas números e garantindo 14 dígitos"""
+        if pd.isna(cnpj) or cnpj == '':
+            return None
+        # Manter apenas números
+        cnpj_limpo = ''.join(filter(str.isdigit, str(cnpj)))
+        # Garantir 14 dígitos com zeros à esquerda
+        if cnpj_limpo:
+            return cnpj_limpo.zfill(14)
+        return None
+    
     def carregar_faturamento(self, file_path):
         """Carrega dados de faturamento"""
         print("📊 Carregando dados de faturamento...")
         
         try:
             self.faturamento_data = pd.read_excel(file_path)
-            print(f"✅ Faturamento carregado: {len(self.faturamento_data)} registros")
+            if self.faturamento_data is not None:
+                print(f"✅ Faturamento carregado: {len(self.faturamento_data)} registros")
             return True
         except Exception as e:
             print(f"❌ Erro ao carregar faturamento: {str(e)}")
@@ -132,7 +145,8 @@ class SistemaUnificadoFinal:
         
         try:
             self.contas_receber_data = pd.read_excel(file_path)
-            print(f"✅ Contas a receber carregadas: {len(self.contas_receber_data)} registros")
+            if self.contas_receber_data is not None:
+                print(f"✅ Contas a receber carregadas: {len(self.contas_receber_data)} registros")
             return True
         except Exception as e:
             print(f"❌ Erro ao carregar contas a receber: {str(e)}")
@@ -144,7 +158,8 @@ class SistemaUnificadoFinal:
         
         try:
             self.clientes_data = pd.read_excel(file_path)
-            print(f"✅ Clientes carregados: {len(self.clientes_data)} registros")
+            if self.clientes_data is not None:
+                print(f"✅ Clientes carregados: {len(self.clientes_data)} registros")
             return True
         except Exception as e:
             print(f"❌ Erro ao carregar clientes: {str(e)}")
@@ -159,28 +174,54 @@ class SistemaUnificadoFinal:
         
         df = self.faturamento_data.copy()
         
+        # Detectar colunas importantes
+        coluna_id = None
+        for c in ['Cliente ID', 'ID Cliente', 'Cód. Cliente', 'Código Cliente', 'ID', 'Codigo']:
+            if c in df.columns: coluna_id = c; break
+            
+        coluna_data = None
+        for c in ['Data Emissao', 'Data Emissão', 'Data', 'Dt Emissão', 'Data faturamento']:
+            if c in df.columns: coluna_data = c; break
+            
+        coluna_franquia = None
+        for c in ['Franquias', 'Franquia', 'Unidade', 'Loja']:
+            if c in df.columns: coluna_franquia = c; break
+
+        if not coluna_id or not coluna_data:
+            print(f"⚠️ Colunas essenciais não detectadas (ID: {coluna_id}, Data: {coluna_data})")
+            return None
+        
         # Converter data de emissão
-        if 'Data Emissao' in df.columns:
-            df['Data Emissao'] = pd.to_datetime(df['Data Emissao'], errors='coerce')
+        df[coluna_data] = pd.to_datetime(df[coluna_data], errors='coerce')
         
         # Classificar clientes por última compra
-        ultima_compra = df.groupby('Cliente ID')['Data Emissao'].max().reset_index()
-        ultima_compra['Status'] = ultima_compra['Data Emissao'].apply(
+        ultima_compra = df.groupby(coluna_id)[coluna_data].max().reset_index()
+        ultima_compra.columns = ['Cliente ID', 'Data Emissão']
+        ultima_compra['Status'] = ultima_compra['Data Emissão'].apply(
             lambda x: 'Ativo' if pd.notna(x) and x >= self.data_cutoff else 'Inativo'
         )
         
         # Mesclar com dados de franquia
-        if 'Franquias' in df.columns:
-            franquia_info = df[['Cliente ID', 'Cliente Faturamento', 'Franquias']].drop_duplicates()
+        if coluna_franquia:
+            # Tentar encontrar nome de faturamento
+            coluna_nome_fat = None
+            for c in ['Cliente Faturamento', 'Nome Fantasia', 'Cliente', 'Razão Social']:
+                if c in df.columns and c != coluna_id: coluna_nome_fat = c; break
+            
+            cols_to_keep = [coluna_id, coluna_franquia]
+            if coluna_nome_fat: cols_to_keep.append(coluna_nome_fat)
+            
+            franquia_info = df[cols_to_keep].drop_duplicates(coluna_id)
+            # Garantir nomes padronizados na saída
+            rename_map = {coluna_id: 'Cliente ID', coluna_franquia: 'Franquias'}
+            if coluna_nome_fat: rename_map[coluna_nome_fat] = 'Cliente Faturamento'
+            franquia_info = franquia_info.rename(columns=rename_map)
+            
             self.franquias_status = pd.merge(ultima_compra, franquia_info, on='Cliente ID', how='left')
         else:
             self.franquias_status = ultima_compra
         
-        print(f"✅ Análise de franquias concluída:")
-        print(f"   🟢 Franquias ATIVAS: {len(self.franquias_status[self.franquias_status['Status'] == 'Ativo'])}")
-        print(f"   🔴 Franquias INATIVAS: {len(self.franquias_status[self.franquias_status['Status'] == 'Inativo'])}")
-        print(f"   Total de Franquias: {len(self.franquias_status)}")
-        
+        print(f"✅ Análise de franquias concluída.")
         return self.franquias_status
     
     def analisar_por_franquia(self):
@@ -190,54 +231,64 @@ class SistemaUnificadoFinal:
         
         df = self.faturamento_data.copy()
         
+        # Detectar colunas
+        coluna_id = None
+        for c in ['Cliente ID', 'ID Cliente', 'Cód. Cliente', 'Código Cliente', 'ID', 'Codigo']:
+            if c in df.columns: coluna_id = c; break
+            
+        coluna_data = None
+        for c in ['Data Emissao', 'Data Emissão', 'Data', 'Dt Emissão']:
+            if c in df.columns: coluna_data = c; break
+
+        coluna_total = None
+        for c in ['R$ Total', 'Total', 'Valor Total', 'Valor']:
+            if c in df.columns: coluna_total = c; break
+            
+        coluna_franquia = None
+        for c in ['Franquias', 'Franquia', 'Unidade', 'Loja']:
+            if c in df.columns: coluna_franquia = c; break
+
+        if not coluna_id or not coluna_franquia or not coluna_total:
+            return pd.DataFrame(), pd.DataFrame()
+
         # Converter data
-        if 'Data Emissao' in df.columns:
-            df['Data Emissao'] = pd.to_datetime(df['Data Emissao'], errors='coerce')
+        if coluna_data:
+            df[coluna_data] = pd.to_datetime(df[coluna_data], errors='coerce')
         
-        # Mesclar com status
-        df_com_status = pd.merge(df, self.franquias_status[['Cliente ID', 'Status']], on='Cliente ID', how='left')
+        # Mesclar com status (o status já foi normalizado para 'Cliente ID' em analisar_status_franquias)
+        status_temp = self.franquias_status[['Cliente ID', 'Status']].copy()
+        df_com_status = pd.merge(df, status_temp, left_on=coluna_id, right_on='Cliente ID', how='left')
         
         # Análise por franquia
-        if 'Franquias' in df_com_status.columns:
-            pivot_franquia = df_com_status.pivot_table(
-                index='Franquias',
-                columns='Status',
-                values='R$ Total',
-                aggfunc='sum',
-                fill_value=0
-            ).reset_index()
-            
-            # Adicionar colunas se não existirem
-            if 'Ativo' not in pivot_franquia.columns:
-                pivot_franquia['Ativo'] = 0
-            if 'Inativo' not in pivot_franquia.columns:
-                pivot_franquia['Inativo'] = 0
-            
-            pivot_franquia['Total Faturado'] = pivot_franquia['Ativo'] + pivot_franquia['Inativo']
-            pivot_franquia['Taxa Inatividade'] = (pivot_franquia['Inativo'] / (pivot_franquia['Ativo'] + pivot_franquia['Inativo']) * 100).round(2)
-            
-            # Detalhe por franquia
-            resumo_franquia = df_com_status.groupby('Franquias').agg({
-                'Cliente ID': 'nunique',
-                'R$ Total': 'sum',
-                'Data Emissao': ['min', 'max']
-            }).round(2)
-            
-            # Achatar colunas
-            resumo_franquia.columns = ['Clientes Únicos', 'Total Faturado', 'Primeira Compra', 'Última Compra']
-            resumo_franquia = resumo_franquia.reset_index()
-        else:
-            pivot_franquia = pd.DataFrame()
-            resumo_franquia = pd.DataFrame()
+        pivot_franquia = df_com_status.pivot_table(
+            index=coluna_franquia,
+            columns='Status',
+            values=coluna_total,
+            aggfunc='sum',
+            fill_value=0
+        ).reset_index()
         
-        # Ordenar por total faturado
-        if not pivot_franquia.empty:
-            pivot_franquia = pivot_franquia.sort_values('Total Faturado', ascending=False)
+        # Adicionar colunas se não existirem
+        if 'Ativo' not in pivot_franquia.columns: pivot_franquia['Ativo'] = 0
+        if 'Inativo' not in pivot_franquia.columns: pivot_franquia['Inativo'] = 0
         
-        print(f"✅ Análise por franquia concluída:")
-        print(f"   🏢 Total de franquias: {len(pivot_franquia)}")
+        pivot_franquia['Total Faturado'] = pivot_franquia['Ativo'] + pivot_franquia['Inativo']
+        pivot_franquia['Taxa Inatividade'] = (pivot_franquia['Inativo'] / (pivot_franquia['Ativo'] + pivot_franquia['Inativo']) * 100).round(2)
+        pivot_franquia = pivot_franquia.rename(columns={coluna_franquia: 'Franquias'})
         
-        return pivot_franquia, resumo_franquia
+        # Resumo detalhado
+        agg_ops = {coluna_id: 'nunique', coluna_total: 'sum'}
+        if coluna_data: agg_ops[coluna_data] = ['min', 'max']
+        
+        resumo_franquia = df_com_status.groupby(coluna_franquia).agg(agg_ops).round(2)
+        
+        # Achatar colunas
+        cols_resumo = ['Clientes Únicos', 'Total Faturado']
+        if coluna_data: cols_resumo.extend(['Primeira Compra', 'Última Compra'])
+        resumo_franquia.columns = cols_resumo
+        resumo_franquia = resumo_franquia.reset_index().rename(columns={coluna_franquia: 'Franquias'})
+        
+        return pivot_franquia.sort_values('Total Faturado', ascending=False), resumo_franquia
     
     def analisar_contas_receber(self):
         """Analisa dados de contas a receber com correção de vendedores e dados de pagamentos"""
@@ -250,7 +301,7 @@ class SistemaUnificadoFinal:
         
         # Detectar coluna de valor
         coluna_valor = None
-        colunas_valor_possiveis = ['R$ Valor', 'Valor', 'R$ Total', 'Total', 'Valor Total', 'Vlr Total', 'Vl. Total']
+        colunas_valor_possiveis = ['R$ Valor', 'Valor', 'R$ Total', 'Total', 'Valor Total', 'Vlr Total', 'Vl. Total', 'Valor Original', 'Vlr Liq.']
         
         for col in colunas_valor_possiveis:
             if col in df_contas.columns:
@@ -259,7 +310,7 @@ class SistemaUnificadoFinal:
         
         # Detectar coluna de valor pago
         coluna_pago = None
-        colunas_pago_possiveis = ['R$ Total Pago', 'Valor Pago', 'Total Pago', 'Pago']
+        colunas_pago_possiveis = ['R$ Total Pago', 'Valor Pago', 'Total Pago', 'Pago', 'Vlr Pago', 'Valor Recebido', 'Vlr Recebido', 'Valor Liquido']
         
         for col in colunas_pago_possiveis:
             if col in df_contas.columns:
@@ -279,23 +330,50 @@ class SistemaUnificadoFinal:
             
             # Detectar coluna de CNPJ no clientes DGA
             coluna_cnpj_clientes = None
-            if 'CNPJ' in self.clientes_data.columns:
-                coluna_cnpj_clientes = 'CNPJ'
+            for col in colunas_cnpj_possiveis:
+                if col in self.clientes_data.columns:
+                    coluna_cnpj_clientes = col
+                    break
             
             # Fazer DEPARA por CNPJ
             if coluna_cnpj_contas and coluna_cnpj_clientes:
-                # Criar mapa de CNPJ para vendedor corrigido
-                cnpj_vendedor_map = dict(zip(
-                    self.clientes_data[coluna_cnpj_clientes], 
-                    self.clientes_data['Vendedor_corrigido']
-                ))
+                print(f"🔗 Realizando mapeamento por CNPJ ({coluna_cnpj_contas} -> {coluna_cnpj_clientes})...")
                 
-                # Adicionar vendedor corrigido via CNPJ
-                df_contas['Vendedor_corrigido'] = df_contas[coluna_cnpj_contas].map(cnpj_vendedor_map)
+                # Criar cópias para não alterar os dados originais brutos se não necessário
+                clientes_temp = self.clientes_data.copy()
                 
-                # Detectar coluna de vendedor original
+                # Normalizar CNPJs nos dois lados
+                clientes_temp['CNPJ_limpo'] = clientes_temp[coluna_cnpj_clientes].apply(self.limpar_cnpj)
+                df_contas['CNPJ_limpo'] = df_contas[coluna_cnpj_contas].apply(self.limpar_cnpj)
+                
+                # Criar mapa de CNPJ limpo para vendedor corrigido
+                # Remover duplicatas de CNPJ limpo nos clientes para evitar problemas no zip
+                clientes_unicos = clientes_temp.dropna(subset=['CNPJ_limpo']).drop_duplicates('CNPJ_limpo')
+                
+                # Detectar coluna de vendedor nos clientes
+                col_vendedor_clientes = None
+                for col_alt in ['Vendedor_corrigido', 'Vendedor', 'Vendedor_cliente', 'Responsável', 'Vendedor Cliente']:
+                    if col_alt in clientes_unicos.columns:
+                        col_vendedor_clientes = col_alt
+                        break
+                
+                if col_vendedor_clientes:
+                    cnpj_vendedor_map = dict(zip(
+                        clientes_unicos['CNPJ_limpo'], 
+                        clientes_unicos[col_vendedor_clientes]
+                    ))
+                    
+                    # Adicionar vendedor corrigido via CNPJ limpo
+                    df_contas['Vendedor_corrigido'] = df_contas['CNPJ_limpo'].map(cnpj_vendedor_map)
+                    
+                    matches = df_contas['Vendedor_corrigido'].notna().sum()
+                    print(f"✅ Mapeamento concluído: {matches} de {len(df_contas)} registros vinculados via CNPJ.")
+                else:
+                    print("⚠️ Nenhuma coluna de vendedor encontrada nos dados de clientes.")
+                
+                # Detectar coluna de vendedor original no contas a receber
                 coluna_vendedor_original = None
-                colunas_vendedor_possiveis = ['Vendedor', 'Vendedor Original', 'Responsável']
+                colunas_vendedor_possiveis = ['Vendedor', 'Vendedor Original', 'Responsável', 'Vendedor_cliente', 'Vendedor_corrigido']
                 
                 for col in colunas_vendedor_possiveis:
                     if col in df_contas.columns:
@@ -304,10 +382,13 @@ class SistemaUnificadoFinal:
                 
                 # Substituir vendedor original se não existir
                 if coluna_vendedor_original is None:
-                    coluna_vendedor_original = 'Vendedor_corrigido'
+                    if 'Vendedor_corrigido' in df_contas.columns:
+                        coluna_vendedor_original = 'Vendedor_corrigido'
                 else:
-                    # Atualizar vendedor original com o corrigido
-                    df_contas[coluna_vendedor_original] = df_contas['Vendedor_corrigido']
+                    # Atualizar vendedor original com o corrigido (se existir)
+                    if 'Vendedor_corrigido' in df_contas.columns:
+                        # Usamos fillna para não perder o vendedor original caso o mapeamento falhe para alguns registros
+                        df_contas[coluna_vendedor_original] = df_contas['Vendedor_corrigido'].fillna(df_contas[coluna_vendedor_original])
         
         # Estatísticas básicas com precisão
         total_contas = len(df_contas)
@@ -347,10 +428,13 @@ class SistemaUnificadoFinal:
             
             status_vencimento = df_contas['Status Vencimento'].value_counts()
         
-        # Análise por status de pagamento
+        # Análise por status de pagamento (baseado em texto)
         status_pagamento = pd.Series()
-        if 'Status' in df_contas.columns:
-            status_pagamento = df_contas['Status'].value_counts()
+        colunas_status_possiveis = ['Status', 'Situação', 'Status Pagamento', 'Situacao']
+        for col in colunas_status_possiveis:
+            if col in df_contas.columns:
+                status_pagamento = df_contas[col].value_counts()
+                break
         
         # CORREÇÃO PRECISA: Usar vendedores corrigidos dos clientes
         contas_por_vendedor = pd.DataFrame()
@@ -570,11 +654,17 @@ class SistemaUnificadoFinal:
             ])
             
             if self.faturamento_data is not None:
-                faturamento_total = self.faturamento_data['R$ Total'].sum()
-                resumo_data.extend([
-                    ['Faturamento Total', f"R$ {faturamento_total:,.2f}", '', ''],
-                    ['', '', '', ''],
-                ])
+                # Tentar encontrar coluna de total
+                col_total_f = None
+                for c in ['R$ Total', 'Total', 'Valor Total', 'Valor']:
+                    if c in self.faturamento_data.columns: col_total_f = c; break
+                
+                if col_total_f:
+                    faturamento_total = self.faturamento_data[col_total_f].sum()
+                    resumo_data.extend([
+                        ['Faturamento Total', f"R$ {faturamento_total:,.2f}", '', ''],
+                        ['', '', '', ''],
+                    ])
         
         # Resumo Contas a Receber
         if self.contas_receber_data is not None:
@@ -602,73 +692,69 @@ class SistemaUnificadoFinal:
         if self.faturamento_data is None or self.franquias_status is None:
             return
         
+        df_fat = self.faturamento_data.copy()
+        
+        # Identificar colunas no faturamento
+        col_id_fat = None
+        for c in ['Cliente ID', 'ID Cliente', 'Cód. Cliente', 'Código Cliente', 'ID', 'Codigo']:
+            if c in df_fat.columns: col_id_fat = c; break
+            
+        col_franq = None
+        for c in ['Franquias', 'Franquia', 'Unidade', 'Loja']:
+            if c in df_fat.columns: col_franq = c; break
+
+        if not col_franq or not col_id_fat:
+            return
+
         # Obter lista de franquias únicas
-        if 'Franquias' in self.faturamento_data.columns:
-            franquias_unicas = self.faturamento_data['Franquias'].dropna().unique()
+        franquias_unicas = df_fat[col_franq].dropna().unique()
+        if len(franquias_unicas) > 20:
+            franquias_unicas = franquias_unicas[:20]
+        
+        for franquia in franquias_unicas:
+            dados_franquia = df_fat[df_fat[col_franq] == franquia].copy()
             
-            # Limitar para não criar muitas abas (máximo 20 franquias)
-            if len(franquias_unicas) > 20:
-                franquias_unicas = franquias_unicas[:20]
-                print(f"   ⚠️ Limitando para as 20 principais franquias")
-            
-            for franquia in franquias_unicas:
-                # Filtrar dados da franquia
-                dados_franquia = self.faturamento_data[self.faturamento_data['Franquias'] == franquia].copy()
+            if self.franquias_status is not None:
+                # O status_status já tem 'Cliente ID' padronizado
+                status_map = dict(zip(self.franquias_status['Cliente ID'], self.franquias_status['Status']))
+                dados_franquia['Status Cliente'] = dados_franquia[col_id_fat].map(status_map)
                 
-                # Adicionar status do cliente com DEPARA CORRETA
-                if self.franquias_status is not None:
-                    status_map = dict(zip(self.franquias_status['Cliente ID'], self.franquias_status['Status']))
-                    dados_franquia['Status Cliente'] = dados_franquia['Cliente ID'].map(status_map)
+                if self.clientes_data is not None:
+                    # Identificar ID nos clientes
+                    col_id_cli = None
+                    for c in ['Cliente ID', 'ID Cliente', 'Cód. Cliente', 'Código Cliente', 'ID', 'Codigo']:
+                        if c in self.clientes_data.columns: col_id_cli = c; break
                     
-                    # NOVO: Adicionar vendedor corrigido do cliente
-                    if self.clientes_data is not None:
-                        # Criar mapa de vendedores corrigidos dos clientes
-                        vendedor_map = dict(zip(self.clientes_data['Cliente ID'], self.clientes_data['Vendedor_corrigido']))
+                    if col_id_cli:
+                        # Vendedor
+                        col_vendedor_cli = None
+                        for c in ['Vendedor_corrigido', 'Vendedor', 'Vendedor_cliente', 'Responsável']:
+                            if c in self.clientes_data.columns: col_vendedor_cli = c; break
                         
-                        # Adicionar vendedor corrigido à franquia
-                        dados_franquia['Vendedor Corrigido'] = dados_franquia['Cliente ID'].map(vendedor_map)
+                        if col_vendedor_cli:
+                            vendedor_map = dict(zip(self.clientes_data[col_id_cli], self.clientes_data[col_vendedor_cli]))
+                            dados_franquia['Vendedor Corrigido'] = dados_franquia[col_id_fat].map(vendedor_map)
                         
-                        # NOVO: Adicionar dados do cliente DGA
-                        # Verificar colunas disponíveis no clientes_data
-                        colunas_cliente = []
+                        # Outros dados do cliente
+                        colunas_extras = []
                         for col in ['Nome Fantasia', 'Razão Social', 'CNPJ', 'Telefone', 'Email']:
-                            if col in self.clientes_data.columns:
-                                colunas_cliente.append(col)
+                            if col in self.clientes_data.columns: colunas_extras.append(col)
                         
-                        if colunas_cliente:
-                            cliente_map = dict(zip(self.clientes_data['Cliente ID'], 
-                                                                self.clientes_data[colunas_cliente].to_dict('records')))
-                            
-                            # Adicionar informações do cliente DGA
-                            for col in colunas_cliente:
-                                dados_franquia[f'Cliente {col}'] = dados_franquia['Cliente ID'].apply(
-                                    lambda x: cliente_map.get(x, {}).get(col, 'N/A')
-                                )
-                
-                # Nome válido para aba (máximo 31 caracteres)
-                nome_aba = str(franquia)[:31].replace('/', '-').replace('\\', '-').replace('*', '-').replace('?', '-').replace(':', '-').replace('[', '-').replace(']', '-')
-                
-                # Se o nome for muito curto ou vazio, usar um padrão
-                if len(nome_aba.strip()) < 3:
-                    nome_aba = f"Franquia_{len(franquias_unicas) - list(franquias_unicas).index(franquia)}"
-                
-                try:
-                    # Criar aba para a franquia
-                    dados_franquia.to_excel(writer, sheet_name=nome_aba, index=False)
-                    print(f"   ✅ Aba criada: {nome_aba} ({len(dados_franquia)} registros)")
-                except Exception as e:
-                    print(f"   ❌ Erro ao criar aba {nome_aba}: {str(e)}")
-                    # Tentar com nome simplificado
-                    try:
-                        nome_simplificado = f"F_{len(franquias_unicas) - list(franquias_unicas).index(franquia)}"
-                        dados_franquia.to_excel(writer, sheet_name=nome_simplificado, index=False)
-                        print(f"   ✅ Aba criada com nome simplificado: {nome_simplificado}")
-                    except:
-                        print(f"   ❌ Não foi possível criar aba para a franquia: {franquia}")
+                        if colunas_extras:
+                            # Mapear dados extras
+                            subset_cli = self.clientes_data[[col_id_cli] + colunas_extras].drop_duplicates(col_id_cli)
+                            for col in colunas_extras:
+                                extra_map = dict(zip(subset_cli[col_id_cli], subset_cli[col]))
+                                dados_franquia[f'Cliente {col}'] = dados_franquia[col_id_fat].map(extra_map)
+
+            nome_aba = str(franquia)[:31].replace('/', '-').replace('\\', '-').replace('*', '-').replace('?', '-').replace(':', '-').replace('[', '-').replace(']', '-')
+            if len(nome_aba.strip()) < 3:
+                nome_aba = f"Franquia_{list(franquias_unicas).index(franquia) + 1}"
             
-            print(f"✅ {len(franquias_unicas)} abas de franquias criadas")
-        else:
-            print("❌ Coluna 'Franquias' não encontrada nos dados")
+            try:
+                dados_franquia.to_excel(writer, sheet_name=nome_aba, index=False)
+            except:
+                pass
     
     def _formatar_planilha(self, writer):
         """Formata a planilha Excel"""
@@ -835,51 +921,50 @@ def mostrar_dashboard(sistema):
             """, unsafe_allow_html=True)
         
         # KPIs adicionais para status de pagamento
-        if not analise_contas['status_pagamento'].empty:
-            st.markdown("---")
-            st.markdown("""
-            <div class="kpi-section">
-                <div class="kpi-title">📊 Status de Pagamento</div>
+        st.markdown("---")
+        st.markdown("""
+        <div class="kpi-section">
+            <div class="kpi-title">📊 Status de Pagamento</div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        col1, col2, col3 = st.columns(3)
+        
+        pagos = analise_contas['contas_pagas']
+        abertos = analise_contas['contas_abertas']
+        total_status = analise_contas['total_contas']
+        
+        with col1:
+            percent_pago = (pagos / total_status * 100) if total_status > 0 else 0
+            st.markdown(f"""
+            <div class="metric-card ativo-card">
+                <div class="icon">✅</div>
+                <h3>Contas Pagas</h3>
+                <h2>{pagos:,}</h2>
+                <small>{percent_pago:.1f}% do total</small>
             </div>
             """, unsafe_allow_html=True)
-            
-            col1, col2, col3 = st.columns(3)
-            
-            pagos = analise_contas['status_pagamento'].get('Pago', 0)
-            abertos = analise_contas['status_pagamento'].get('Aberto', 0)
-            total_status = pagos + abertos
-            
-            with col1:
-                percent_pago = (pagos / total_status * 100) if total_status > 0 else 0
-                st.markdown(f"""
-                <div class="metric-card ativo-card">
-                    <div class="icon">✅</div>
-                    <h3>Contas Pagas</h3>
-                    <h2>{pagos:,}</h2>
-                    <small>{percent_pago:.1f}% do total</small>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col2:
-                percent_aberto = (abertos / total_status * 100) if total_status > 0 else 0
-                st.markdown(f"""
-                <div class="metric-card inativo-card">
-                    <div class="icon">📋</div>
-                    <h3>Contas Abertas</h3>
-                    <h2>{abertos:,}</h2>
-                    <small>{percent_aberto:.1f}% do total</small>
-                </div>
-                """, unsafe_allow_html=True)
-            
-            with col3:
-                st.markdown(f"""
-                <div class="metric-card">
-                    <div class="icon">📊</div>
-                    <h3>Total Status</h3>
-                    <h2>{total_status:,}</h2>
-                    <small>Contas com status</small>
-                </div>
-                """, unsafe_allow_html=True)
+        
+        with col2:
+            percent_aberto = (abertos / total_status * 100) if total_status > 0 else 0
+            st.markdown(f"""
+            <div class="metric-card inativo-card">
+                <div class="icon">📋</div>
+                <h3>Contas Abertas</h3>
+                <h2>{abertos:,}</h2>
+                <small>{percent_aberto:.1f}% do total</small>
+            </div>
+            """, unsafe_allow_html=True)
+        
+        with col3:
+            st.markdown(f"""
+            <div class="metric-card">
+                <div class="icon">📊</div>
+                <h3>Total Status</h3>
+                <h2>{total_status:,}</h2>
+                <small>Contas analisadas</small>
+            </div>
+            """, unsafe_allow_html=True)
         
         # KPIs adicionais para vendedores
         if not analise_contas['contas_por_vendedor'].empty:
